@@ -131,6 +131,11 @@ def _process_xml(xml_bytes: bytes, data: dict) -> bytes | None:
     except etree.XMLSyntaxError:
         return None
 
+    # Remove mc:Fallback elements to avoid duplicate text from AlternateContent
+    MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+    for fallback in tree.iter(f"{{{MC_NS}}}Fallback"):
+        fallback.getparent().remove(fallback)
+
     changed = False
     for p in tree.iter(f"{{{WORD_NS}}}p"):
         if _replace_in_paragraph(p, data):
@@ -208,6 +213,11 @@ def scan_placeholders(template_path: str) -> list[str]:
                 tree = etree.fromstring(z.read(name))
             except etree.XMLSyntaxError:
                 continue
+
+            # Remove mc:Fallback elements to avoid duplicate text from AlternateContent
+            MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+            for fallback in tree.iter(f"{{{MC_NS}}}Fallback"):
+                fallback.getparent().remove(fallback)
 
             for p in tree.iter(f"{{{WORD_NS}}}p"):
                 runs = p.findall(".//w:r", NSMAP)
