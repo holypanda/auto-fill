@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auto-Fill · 文档自动填写系统</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1a1a1e;
+  --paper: #f5f2ed;
+  --cream: #eae5dc;
+  --gold: #b8952e;
+  --gold-light: #d4b654;
+  --gold-muted: rgba(184, 149, 46, 0.12);
+  --border: #d5cfc5;
+  --text-secondary: #6b6560;
+  --red: #c44;
+  --green: #2a7a4b;
+  --radius: 6px;
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body: 'DM Sans', 'Noto Sans SC', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* Subtle paper texture */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Header */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0 2rem;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 2px solid var(--gold);
+}
+
+header h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: 0.03em;
+}
+
+header h1 span {
+  color: var(--gold-light);
+  font-style: italic;
+  font-weight: 400;
+  margin-left: 0.4rem;
+}
+
+.header-actions {
+  display: flex; gap: 0.5rem;
+}
+
+/* Buttons */
+.btn {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+  background: transparent;
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}
+
+.btn:hover { background: rgba(255,255,255,0.08); }
+
+.btn-primary {
+  background: var(--gold);
+  color: #fff;
+  border-color: var(--gold);
+  font-weight: 600;
+}
+
+.btn-primary:hover { background: var(--gold-light); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+
+.btn-outline:hover { background: var(--cream); border-color: var(--gold); }
+
+.btn-sm { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
+
+/* Layout */
+.container {
+  position: relative; z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+  gap: 0;
+}
+
+.tab {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.7rem 1.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.2s;
+}
+
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+.tab-content { display: none; }
+.tab-content.active { display: block; animation: fadeUp 0.3s ease; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Form sections */
+.form-section {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 1.5rem;
+  overflow: hidden;
+}
+
+.form-section-header {
+  padding: 0.8rem 1.2rem;
+  background: var(--cream);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.form-section-header h3 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.form-section-header .badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--gold-muted);
+  color: var(--gold);
+  padding: 0.15rem 0.5rem;
+  border-radius: 99px;
+}
+
+.form-section-body {
+  padding: 1.2rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.field.full { grid-column: 1 / -1; }
+
+.field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.field input {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  transition: all 0.2s;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-muted);
+}
+
+.field input::placeholder { color: #b5ad9f; }
+
+/* Action bar */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  padding: 1rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 50;
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+}
+
+.action-bar .left { display: flex; gap: 0.5rem; }
+.action-bar .right { display: flex; gap: 0.5rem; align-items: center; }
+
+/* Templates panel */
+.template-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.template-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+  transition: all 0.2s;
+}
+
+.template-card:hover {
+  border-color: var(--gold);
+  box-shadow: 0 2px 12px rgba(184,149,46,0.1);
+}
+
+.template-card h4 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+
+.template-card .placeholders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.template-card .placeholders .tag {
+  font-size: 0.65rem;
+  font-weight: 500;
+  background: var(--gold-muted);
+  color: var(--gold);
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.template-card .actions {
+  margin-top: 0.8rem;
+  display: flex; gap: 0.4rem;
+}
+
+/* Template selection toolbar */
+.template-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding: 0.6rem 1rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.template-toolbar .toolbar-left {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.template-toolbar .selection-count {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Template card checkbox */
+.template-card {
+  position: relative;
+}
+
+.template-checkbox {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--gold);
+  cursor: pointer;
+}
+
+/* Upload area */
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 1.5rem;
+}
+
+.upload-zone:hover {
+  border-color: var(--gold);
+  background: var(--gold-muted);
+}
+
+/* Toast */
+.toast-container {
+  position: fixed;
+  top: 70px;
+  right: 1.5rem;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.toast {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.7rem 1.2rem;
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  animation: slideIn 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+  border-left: 3px solid var(--gold);
+}
+
+.toast.error { border-left-color: var(--red); }
+.toast.success { border-left-color: var(--green); }
+
+@keyframes slideIn { from { transform: translateX(40px); opacity: 0; } }
+@keyframes fadeOut { to { opacity: 0; transform: translateY(-10px); } }
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Progress indicator */
+.progress-text {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .form-section-body { grid-template-columns: 1fr; }
+  .template-list { grid-template-columns: 1fr; }
+  .action-bar { flex-direction: column; gap: 0.8rem; }
+  .action-bar .left, .action-bar .right { width: 100%; justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Auto-Fill<span>文档自动填写</span></h1>
+  <div class="header-actions">
+    <button class="btn btn-sm" onclick="loadFromFile()" title="从JSON文件加载">↑ 加载</button>
+    <button class="btn btn-sm" onclick="saveToFile()" title="保存为JSON文件">↓ 保存</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab active" data-tab="form">填写信息</button>
+    <button class="tab" data-tab="templates">模板管理</button>
+  </div>
+
+  <div id="tab-form" class="tab-content active">
+    <div id="form-container"></div>
+  </div>
+
+  <div id="tab-templates" class="tab-content">
+    <div id="template-toolbar" class="template-toolbar"></div>
+    <div id="template-list" class="template-list"></div>
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('upload-input').click()">
+      <p style="font-size:1.5rem;margin-bottom:0.3rem;">+</p>
+      <p>点击上传新模板 (.docx / .pdf)</p>
+      <input type="file" id="upload-input" accept=".docx,.pdf" style="display:none" onchange="uploadTemplate(this)">
+    </div>
+  </div>
+</div>
+
+<div class="action-bar">
+  <div class="left">
+    <button class="btn btn-outline" onclick="clearForm()">清空表单</button>
+    <button class="btn btn-outline" onclick="loadFromLocalStorage()">恢复上次</button>
+  </div>
+  <div class="right">
+    <span class="progress-text" id="progress"></span>
+    <button class="btn btn-primary" id="fill-all-btn" onclick="fillAll()">一键填充所有模板</button>
+  </div>
+</div>
+
+<div class="toast-container" id="toasts"></div>
+
+<!-- Hidden file input for JSON load -->
+<input type="file" id="json-input" accept=".json" style="display:none" onchange="handleJsonLoad(this)">
+
+<script>
+const FIELD_GROUPS = {
+  '实体信息 Entity': ['{Entity Name}', '{Entity Location}', '{Incorporation Date}', '{BR No.}', '{Fund Name}'],
+  '地址 Address': ['{Address L1}', '{Address L2}', '{Address Country}'],
+  '税务 Tax': ['{TIN}', '{TINorNot}', '{Passive NFE}', '{shareholder}'],
+  '董事 Director': ['{Director Name}', '{Director ID}', '{Director Address}', '{Director Country}', '{Director Email}', '{Director Tel}'],
+  '控权人 Controlling Person': ['{Controlling FirstName}', '{Controlling LastName}', '{Controlling ID}', '{Controlling Email}', '{Controlling Tel}', '{Controlling Address1}', '{Controlling Address2}', '{Controlling Country}', '{Controlling Brith}', '{Controlling Location}', '{Controlling TIN}'],
+};
+
+let allFields = [];
+let templates = [];
+let selectedTemplates = new Set();
+
+// Pretty label from placeholder key
+function label(key) {
+  return key.replace(/^\{/, '').replace(/\}$/, '');
+}
+
+// Init
+async function init() {
+  try {
+    const [fieldsRes, templatesRes] = await Promise.all([
+      fetch('/api/fields').then(r => r.json()),
+      fetch('/api/templates').then(r => r.json()),
+    ]);
+    allFields = fieldsRes;
+    templates = templatesRes;
+    selectedTemplates = new Set(templates.map(t => t.name));
+    renderForm();
+    renderTemplates();
+    updateFillButton();
+    loadFromLocalStorage();
+  } catch (e) {
+    toast('无法连接后端服务', 'error');
+  }
+}
+
+function getActiveFields() {
+  if (selectedTemplates.size === 0) return [];
+  const active = new Set();
+  templates
+    .filter(t => selectedTemplates.has(t.name))
+    .forEach(t => t.placeholders.forEach(p => active.add(p)));
+  return [...active];
+}
+
+function refreshFormForSelection() {
+  const saved = getFormData();
+  renderForm();
+  setFormData(saved);
+}
+
+function renderForm() {
+  const container = document.getElementById('form-container');
+  const activeFields = getActiveFields();
+  const grouped = new Set();
+  let html = '';
+
+  if (selectedTemplates.size === 0) {
+    container.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-secondary);">请先选择至少一个模板</p>';
+    return;
+  }
+
+  for (const [groupName, fields] of Object.entries(FIELD_GROUPS)) {
+    const present = fields.filter(f => activeFields.includes(f));
+    if (!present.length) continue;
+    present.forEach(f => grouped.add(f));
+
+    html += `<div class="form-section">
+      <div class="form-section-header" onclick="this.parentElement.querySelector('.form-section-body').classList.toggle('collapsed')">
+        <h3>${groupName}</h3>
+        <span class="badge">${present.length} 字段</span>
+      </div>
+      <div class="form-section-body">
+        ${present.map(f => `
+          <div class="field">
+            <label for="${f}">${label(f)}</label>
+            <input type="text" id="${f}" name="${f}" placeholder="${f}" data-field="${f}">
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Ungrouped fields
+  const ungrouped = activeFields.filter(f => !grouped.has(f));
+  if (ungrouped.length) {
+    html += `<div class="form-section">
+      <div class="form-section-header">
+        <h3>其他字段 Other</h3>
+        <span class="badge">${ungrouped.length} 字段</span>
+      </div>
+      <div class="form-section-body">
+        ${ungrouped.map(f => `
+          <div class="field">
+            <label for="${f}">${label(f)}</label>
+            <input type="text" id="${f}" name="${f}" placeholder="${f}" data-field="${f}">
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function renderTemplates() {
+  const container = document.getElementById('template-list');
+  const toolbar = document.getElementById('template-toolbar');
+
+  // Render toolbar
+  if (toolbar) {
+    toolbar.innerHTML = `
+      <div class="toolbar-left">
+        <button class="btn btn-sm btn-outline" onclick="selectAllTemplates()">全选</button>
+        <button class="btn btn-sm btn-outline" onclick="clearAllTemplates()">清空</button>
+      </div>
+      <span class="selection-count">已选 ${selectedTemplates.size}/${templates.length}</span>`;
+  }
+
+  container.innerHTML = templates.map(t => {
+    const isPdf = t.type === '.pdf';
+    const checked = selectedTemplates.has(t.name) ? 'checked' : '';
+    const typeBadge = isPdf
+      ? '<span class="tag" style="background:#fee;color:#c44;">PDF</span>'
+      : '<span class="tag" style="background:#eef;color:#46c;">DOCX</span>';
+    return `
+    <div class="template-card">
+      <input type="checkbox" class="template-checkbox" data-template="${t.name}" ${checked} onchange="toggleTemplate('${encodeURIComponent(t.name)}', this.checked)">
+      <h4>${typeBadge} ${t.name}</h4>
+      <div class="placeholders">
+        ${t.placeholders.length
+          ? t.placeholders.map(p => `<span class="tag">${label(p)}</span>`).join('')
+          : isPdf ? '<span style="color:var(--text-secondary);font-size:0.75rem;">需要配置字段映射</span>' : '<span style="color:var(--text-secondary);font-size:0.75rem;">无占位符</span>'}
+      </div>
+      <div class="actions">
+        <button class="btn btn-sm btn-outline" onclick="fillSingle('${encodeURIComponent(t.name)}')">单独填充</button>
+        <button class="btn btn-sm btn-outline" onclick="downloadTemplate('${encodeURIComponent(t.name)}')">下载</button>
+        <button class="btn btn-sm btn-outline" style="color:var(--red);border-color:var(--red);" onclick="deleteTemplate('${encodeURIComponent(t.name)}')">删除</button>
+        ${isPdf ? `<button class="btn btn-sm btn-outline" onclick="editPdfMapping('${encodeURIComponent(t.name)}')">字段映射</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleTemplate(encodedName, checked) {
+  const name = decodeURIComponent(encodedName);
+  if (checked) {
+    selectedTemplates.add(name);
+  } else {
+    selectedTemplates.delete(name);
+  }
+  updateSelectionUI();
+  refreshFormForSelection();
+}
+
+function selectAllTemplates() {
+  selectedTemplates = new Set(templates.map(t => t.name));
+  document.querySelectorAll('.template-checkbox').forEach(cb => cb.checked = true);
+  updateSelectionUI();
+  refreshFormForSelection();
+}
+
+function clearAllTemplates() {
+  selectedTemplates.clear();
+  document.querySelectorAll('.template-checkbox').forEach(cb => cb.checked = false);
+  updateSelectionUI();
+  refreshFormForSelection();
+}
+
+function updateSelectionUI() {
+  const countEl = document.querySelector('.selection-count');
+  if (countEl) countEl.textContent = `已选 ${selectedTemplates.size}/${templates.length}`;
+  updateFillButton();
+}
+
+function updateFillButton() {
+  const btn = document.getElementById('fill-all-btn');
+  if (!btn || btn.disabled) return;
+  const n = selectedTemplates.size;
+  btn.textContent = n > 0 ? `填充 ${n} 个模板` : '填充模板';
+}
+
+// PDF field mapping editor
+async function showPdfPreview(encodedName) {
+  const name = decodeURIComponent(encodedName);
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:300;display:flex;align-items:center;justify-content:center;';
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:#fff;border-radius:8px;padding:1rem;max-width:900px;width:95%;max-height:90vh;overflow:auto;';
+  modal.innerHTML = '<p style="text-align:center;padding:2rem;color:var(--text-secondary);">Loading preview...</p>';
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  try {
+    const res = await fetch('/api/pdf-preview-labeled/' + encodeURIComponent(name));
+    if (!res.ok) throw new Error('Failed to load');
+    const data = await res.json();
+
+    let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">
+      <h3 style="font-family:var(--font-display);font-size:1.2rem;">PDF Field Map — ${name}</h3>
+      <button class="btn btn-sm btn-outline" onclick="this.closest('div[style*=fixed]').remove()">✕ Close</button>
+    </div>
+    <p style="font-size:0.78rem;color:var(--text-secondary);margin-bottom:1rem;">Red boxes = fillable text fields. Labels show field ID + description.</p>`;
+
+    data.pages.forEach((b64, i) => {
+      html += `<div style="margin-bottom:1rem;">
+        <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:0.3rem;">Page ${i + 1}</div>
+        <img src="data:image/png;base64,${b64}" style="width:100%;border:1px solid var(--border);border-radius:4px;">
+      </div>`;
+    });
+
+    modal.innerHTML = html;
+  } catch (e) {
+    modal.innerHTML = `<p style="color:var(--red);padding:2rem;">Failed to load preview: ${e.message}</p>`;
+  }
+}
+
+async function editPdfMapping(encodedName) {
+  const name = decodeURIComponent(encodedName);
+  try {
+    const [pdfFields, currentMap] = await Promise.all([
+      fetch('/api/pdf-fields/' + encodeURIComponent(name)).then(r => r.json()),
+      fetch('/api/pdf-field-map/' + encodeURIComponent(name)).then(r => r.json()),
+    ]);
+
+    // Reverse map: pdf_field → placeholder
+    const reverseMap = {};
+    for (const [ph, pf] of Object.entries(currentMap)) reverseMap[pf] = ph;
+
+    const textFields = pdfFields.filter(f => f.type === 'text');
+
+    // Build modal
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:flex;align-items:center;justify-content:center;';
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:#fff;border-radius:8px;padding:1.5rem;max-width:800px;width:95%;max-height:85vh;overflow:auto;';
+
+    let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="font-family:var(--font-display);font-size:1.3rem;">PDF 字段映射 — ${name}</h3>
+        <button class="btn btn-sm btn-outline" onclick="showPdfPreview('${encodeURIComponent(name)}')" title="查看每个字段在PDF上的位置">⊞ 预览字段位置</button>
+      </div>
+      <p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:1rem;">将 PDF 表单字段映射到客户数据。点击右上角「预览字段位置」可下载标注版 PDF 对照查看。共 ${textFields.length} 个文本字段。</p>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0.4rem 0.8rem;font-size:0.8rem;">
+        <div style="font-weight:600;padding:0.3rem;border-bottom:1px solid var(--border);">PDF 字段（位置说明）</div>
+        <div style="font-weight:600;padding:0.3rem;border-bottom:1px solid var(--border);">映射到 →</div>`;
+
+    for (const f of textFields) {
+      const shortName = f.name.split('.').pop();
+      const desc = f.description || '';
+      const current = reverseMap[f.name] || '';
+      const descHtml = desc
+        ? `<span style="color:var(--gold);font-weight:500;">${desc}</span>`
+        : `<span style="color:#bbb;font-style:italic;">无描述</span>`;
+      html += `<div style="padding:0.4rem 0.3rem;border-bottom:1px solid #f0ede8;" title="${f.name}">
+          <span style="font-family:monospace;font-size:0.7rem;color:var(--text-secondary);">${shortName}</span><br>
+          ${descHtml}
+        </div>
+        <select data-pdf-field="${f.name}" style="padding:0.3rem;border:1px solid var(--border);border-radius:4px;font-size:0.8rem;height:fit-content;align-self:center;">
+          <option value="">— 不映射 —</option>
+          ${allFields.map(af => `<option value="${af}" ${af === current ? 'selected' : ''}>${label(af)}</option>`).join('')}
+        </select>`;
+    }
+
+    html += `</div>
+      <div style="margin-top:1.2rem;display:flex;gap:0.5rem;justify-content:flex-end;">
+        <button class="btn btn-outline" onclick="this.closest('div[style*=fixed]').remove()">取消</button>
+        <button class="btn btn-primary" id="save-pdf-map">保存映射</button>
+      </div>`;
+
+    modal.innerHTML = html;
+    overlay.appendChild(modal);
+    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+
+    document.getElementById('save-pdf-map').addEventListener('click', async () => {
+      const newMap = {};
+      modal.querySelectorAll('select[data-pdf-field]').forEach(sel => {
+        if (sel.value) newMap[sel.value] = sel.dataset.pdfField;
+      });
+      try {
+        const res = await fetch('/api/pdf-field-map', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ template_name: name, field_map: newMap }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        toast('映射已保存', 'success');
+        overlay.remove();
+        // Refresh templates
+        templates = await fetch('/api/templates').then(r => r.json());
+        allFields = await fetch('/api/fields').then(r => r.json());
+        renderForm();
+        renderTemplates();
+      } catch (e) {
+        toast('保存失败: ' + e.message, 'error');
+      }
+    });
+  } catch (e) {
+    toast('加载字段失败: ' + e.message, 'error');
+  }
+}
+
+// Collect form data
+function getFormData() {
+  const data = {};
+  document.querySelectorAll('[data-field]').forEach(input => {
+    data[input.dataset.field] = input.value;
+  });
+  return data;
+}
+
+function setFormData(data) {
+  document.querySelectorAll('[data-field]').forEach(input => {
+    if (data[input.dataset.field] !== undefined) {
+      input.value = data[input.dataset.field];
+    }
+  });
+}
+
+// Fill all templates
+async function fillAll() {
+  const btn = document.getElementById('fill-all-btn');
+  const progress = document.getElementById('progress');
+  const data = getFormData();
+
+  if (selectedTemplates.size === 0) {
+    toast('请至少选择一个模板', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 处理中…';
+  progress.textContent = '正在生成文档…';
+
+  try {
+    const clientName = data['{Entity Name}'] || 'client';
+    const templateNames = [...selectedTemplates];
+    const res = await fetch('/api/fill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data, client_name: clientName, template_names: templateNames }),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    // Check warnings
+    const warnings = JSON.parse(res.headers.get('X-Warnings') || '[]');
+    if (warnings.length) {
+      toast(`${warnings.length} 个未匹配占位符`, 'error');
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${clientName.replace(/\s/g, '_')}_documents.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    saveToLocalStorage();
+    toast('所有文档已生成并下载', 'success');
+    progress.textContent = '';
+  } catch (e) {
+    toast('生成失败: ' + e.message, 'error');
+    progress.textContent = '';
+  } finally {
+    btn.disabled = false;
+    updateFillButton();
+  }
+}
+
+// Fill single template
+async function fillSingle(encodedName) {
+  const name = decodeURIComponent(encodedName);
+  const data = getFormData();
+  const clientName = data['{Entity Name}'] || 'client';
+
+  try {
+    const res = await fetch('/api/fill-single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data, template_name: name, client_name: clientName }),
+    });
+
+    if (!res.ok) throw new Error(await res.text());
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const base = name.replace('.docx', '');
+    a.download = `${base}_filled_${clientName.replace(/\s/g, '_')}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast(`已生成: ${name}`, 'success');
+  } catch (e) {
+    toast('生成失败: ' + e.message, 'error');
+  }
+}
+
+// Upload template
+async function uploadTemplate(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res = await fetch('/api/upload-template', { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(await res.text());
+    const result = await res.json();
+    templates.push(result);
+    selectedTemplates.add(result.name);
+    renderTemplates();
+    updateFillButton();
+    // Refresh fields
+    const fields = await fetch('/api/fields').then(r => r.json());
+    allFields = fields;
+    renderForm();
+    toast(`模板已上传: ${result.name}`, 'success');
+  } catch (e) {
+    toast('上传失败: ' + e.message, 'error');
+  }
+  input.value = '';
+}
+
+// Download template
+function downloadTemplate(encodedName) {
+  const name = decodeURIComponent(encodedName);
+  window.open('/api/download-template/' + encodeURIComponent(name), '_blank');
+}
+
+// Delete template
+async function deleteTemplate(encodedName) {
+  const name = decodeURIComponent(encodedName);
+  if (!confirm(`确定要删除模板「${name}」吗？此操作不可撤销。`)) return;
+
+  try {
+    const res = await fetch('/api/templates/' + encodeURIComponent(name), { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    toast(`已删除: ${name}`, 'success');
+    selectedTemplates.delete(name);
+    // Refresh templates and fields
+    const [templatesRes, fieldsRes] = await Promise.all([
+      fetch('/api/templates').then(r => r.json()),
+      fetch('/api/fields').then(r => r.json()),
+    ]);
+    templates = templatesRes;
+    allFields = fieldsRes;
+    renderTemplates();
+    renderForm();
+    updateFillButton();
+  } catch (e) {
+    toast('删除失败: ' + e.message, 'error');
+  }
+}
+
+// LocalStorage
+function saveToLocalStorage() {
+  localStorage.setItem('autofill-data', JSON.stringify(getFormData()));
+}
+
+function loadFromLocalStorage() {
+  const saved = localStorage.getItem('autofill-data');
+  if (saved) {
+    try { setFormData(JSON.parse(saved)); } catch {}
+  }
+}
+
+// File save/load
+function saveToFile() {
+  const data = getFormData();
+  const clientName = data['{Entity Name}'] || 'client';
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${clientName.replace(/\s/g, '_')}.json`;
+  a.click();
+  saveToLocalStorage();
+  toast('客户信息已保存', 'success');
+}
+
+function loadFromFile() {
+  document.getElementById('json-input').click();
+}
+
+function handleJsonLoad(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      setFormData(data);
+      toast(`已加载: ${file.name}`, 'success');
+    } catch {
+      toast('JSON 文件格式错误', 'error');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function clearForm() {
+  document.querySelectorAll('[data-field]').forEach(input => input.value = '');
+  toast('表单已清空');
+}
+
+// Tabs
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Toast
+function toast(msg, type = '') {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// Auto-save on input
+document.addEventListener('input', (e) => {
+  if (e.target.dataset?.field) saveToLocalStorage();
+});
+
+init();
+</script>
+</body>
+</html>
